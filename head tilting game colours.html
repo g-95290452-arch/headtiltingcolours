@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Head Tilting Game – Colours</title>
+    <!-- Tailwind CSS for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font: Comic Neue for a kid-friendly look -->
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Comic Neue', cursive;
+            background-color: #FEF3C7; /* Light yellow background */
+            overflow: hidden; /* Prevent scrolling */
+            touch-action: none;
+        }
+
+        /* Mirror the video so movement feels natural */
+        #webcam, #output_canvas {
+            transform: scaleX(-1);
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+        }
+
+        /* Overlay UI elements */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to hidden elements if needed */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .zone {
+            position: absolute;
+            top: 20%;
+            bottom: 0;
+            width: 30%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            opacity: 0.7;
+        }
+
+        .zone-left {
+            left: 0;
+            background: linear-gradient(90deg, rgba(74, 222, 128, 0.4) 0%, transparent 100%);
+            border-right: 2px dashed rgba(255,255,255,0.5);
+        }
+
+        .zone-right {
+            right: 0;
+            background: linear-gradient(-90deg, rgba(248, 113, 113, 0.4) 0%, transparent 100%);
+            border-left: 2px dashed rgba(255,255,255,0.5);
+        }
+
+        .zone-active {
+            opacity: 0.9;
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .zone-text {
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 3px 3px 0 #000;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+        }
+
+        .arrow-icon {
+            font-size: 4rem;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Question Card */
+        .question-card {
+            background: white;
+            border: 5px solid #3B82F6;
+            border-radius: 25px;
+            padding: 20px 40px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            margin-top: 20px;
+            max-width: 80%;
+            z-index: 20;
+            pointer-events: auto;
+            transform: scale(0.9);
+            animation: popIn 0.5s forwards;
+        }
+
+        @keyframes popIn {
+            to { transform: scale(1); }
+        }
+
+        .emoji-display {
+            font-size: 5rem;
+            margin: 10px 0;
+            display: block;
+        }
+
+        /* Start Screen */
+        #start-screen, #end-screen, #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #FEF3C7;
+            background-image: radial-gradient(#FDE68A 20%, transparent 20%);
+            background-size: 30px 30px;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        .btn-primary {
+            background-color: #3B82F6;
+            color: white;
+            font-size: 2rem;
+            padding: 15px 40px;
+            border-radius: 50px;
+            border-bottom: 8px solid #1D4ED8;
+            cursor: pointer;
+            transition: transform 0.1s;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .btn-primary:active {
+            transform: translateY(4px);
+            border-bottom: 4px solid #1D4ED8;
+        }
+
+        .feedback-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 6rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 4px 4px 0 #000;
+            z-index: 40;
+            display: none;
+            animation: zoomFade 1.5s forwards;
+        }
+
+        @keyframes zoomFade {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+
+        .progress-bar {
+            width: 80%;
+            height: 20px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 10px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #10B981;
+            width: 0%;
+            transition: width 0.5s;
+        }
+
+        /* Webcam loading spinner */
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Detection Feedback Ring */
+        #head-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 350px;
+            border: 4px dashed rgba(255,255,255,0.4);
+            border-radius: 50% 50% 40% 40%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <!-- Camera Feed -->
+        <video id="webcam" autoplay playsinline></video>
+        <!-- Canvas for processing (hidden/optional for debug) -->
+        <canvas id="output_canvas" style="display:none;"></canvas>
+
+        <!-- Head Guide Visual -->
+        <div id="head-guide"></div>
+
+        <!-- Gameplay UI -->
+        <div id="game-ui" class="overlay" style="display: none;">
+            
+            <!-- Top Section: Question -->
+            <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+                <div class="question-card">
+                    <h2 class="text-3xl text-gray-700">Question <span id="q-num">1</span>/20</h2>
+                    <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+                    <span id="q-emoji" class="emoji-display">🔴</span>
+                    <h1 id="q-text" class="text-4xl md:text-5xl font-bold text-gray-900">Is this red?</h1>
+                </div>
+            </div>
+
+            <!-- Interaction Zones -->
+            
+            <!-- LEFT ZONE: YES -->
+            <div id="zone-left" class="zone zone-left">
+                <div class="arrow-icon">⬅️</div>
+                <div class="zone-text" style="color:#4ADE80;">YES</div>
+                <div class="text-2xl text-white font-bold bg-black bg-opacity-50 px-3 rounded">(Tilt Left)</div>
+            </div>
+
+            <!-- RIGHT ZONE: NO -->
+            <div id="zone-right" class="zone zone-right">
+                <div class="arrow-icon">➡️</div>
+                <div class="zone-text" style="color:#F87171;">NO</div>
+                <div class="text-2xl text-white font-bold bg-black bg-opacity-50 px-3 rounded">(Tilt Right)</div>
+            </div>
+
+        </div>
+
+        <!-- Feedback Overlay -->
+        <div id="feedback-text" class="feedback-overlay">Good Job!</div>
+
+        <!-- Loading Screen -->
+        <div id="loading-screen" style="display: none;">
+            <div class="loader"></div>
+            <h2 class="text-2xl font-bold mt-4 text-gray-700">Loading Camera & AI...</h2>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <h1 class="text-6xl font-bold text-blue-600 mb-2">Head Tilting Game</h1>
+            <h2 class="text-4xl text-orange-500 font-bold mb-8">Colours</h2>
+            
+            <div class="bg-white p-6 rounded-xl shadow-lg max-w-lg">
+                <p class="text-2xl mb-4">How to play:</p>
+                <div class="flex items-center justify-center space-x-8 mb-4">
+                    <div class="text-center">
+                        <span class="text-4xl">🤔 ⬅️</span>
+                        <p class="font-bold text-green-500">Tilt Left<br>YES</p>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-4xl">➡️ 🤔</span>
+                        <p class="font-bold text-red-500">Tilt Right<br>NO</p>
+                    </div>
+                </div>
+            </div>
+
+            <button id="start-btn" class="btn-primary">Start Game 📸</button>
+            <p class="mt-4 text-gray-500 text-sm">Requires camera access</p>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" style="display: none;">
+            <h1 class="text-5xl font-bold text-blue-600 mb-4">Game Over!</h1>
+            <div class="text-8xl mb-4">🏆</div>
+            <p class="text-3xl text-gray-700">You scored:</p>
+            <h2 id="final-score" class="text-6xl font-bold text-green-600 my-4">0 / 20</h2>
+            <button id="restart-btn" class="btn-primary">Play Again 🔄</button>
+        </div>
+
+    </div>
+
+    <!-- SCRIPTS -->
+    <script type="module">
+        import {
+            FilesetResolver,
+            FaceLandmarker
+        } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+
+        // --- Game Data ---
+        const questions = [
+            { text: "Is this red?", emoji: "🔴", answer: true },
+            { text: "Is this green?", emoji: "🟦", answer: false },
+            { text: "Is this yellow?", emoji: "🍌", answer: true },
+            { text: "Is this red?", emoji: "🥦", answer: false },
+            { text: "Is this blue?", emoji: "🔵", answer: true },
+            { text: "Is this yellow?", emoji: "🍎", answer: false },
+            { text: "Is this green?", emoji: "🌱", answer: true },
+            { text: "Is this blue?", emoji: "🌼", answer: false },
+            { text: "Is this black?", emoji: "⚫", answer: true },
+            { text: "Is this white?", emoji: "🟫", answer: false },
+            { text: "Is this white?", emoji: "🥛", answer: true },
+            { text: "Is this brown?", emoji: "🍓", answer: false },
+            { text: "Is this red?", emoji: "🍎", answer: true },
+            { text: "Is this green?", emoji: "🍋", answer: false },
+            { text: "Is this yellow?", emoji: "☀️", answer: true },
+            { text: "Is this blue?", emoji: "🌙", answer: false },
+            { text: "Is this blue?", emoji: "📘", answer: true },
+            { text: "Is this red?", emoji: "🥕", answer: false },
+            { text: "Is this white?", emoji: "📄", answer: true },
+            { text: "Is this black?", emoji: "🍌", answer: false }
+        ];
+
+        // --- State Variables ---
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let isGameActive = false;
+        let isProcessing = false; 
+        let faceLandmarker = undefined;
+        let lastVideoTime = -1;
+        let animationFrameId = null;
+        
+        // --- DOM Elements ---
+        const video = document.getElementById("webcam");
+        const startScreen = document.getElementById("start-screen");
+        const loadingScreen = document.getElementById("loading-screen");
+        const gameUI = document.getElementById("game-ui");
+        const endScreen = document.getElementById("end-screen");
+        const feedbackEl = document.getElementById("feedback-text");
+        
+        const qNumEl = document.getElementById("q-num");
+        const qEmojiEl = document.getElementById("q-emoji");
+        const qTextEl = document.getElementById("q-text");
+        const progressFill = document.getElementById("progress-fill");
+        const finalScoreEl = document.getElementById("final-score");
+        
+        const zoneLeft = document.getElementById("zone-left");
+        const zoneRight = document.getElementById("zone-right");
+
+        // --- Sound Effects ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playTone(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'correct') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.5);
+            } else if (type === 'wrong') {
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+                oscillator.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1.1;
+                utterance.pitch = 1.2;
+                utterance.volume = 1;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // --- Initialization ---
+
+        async function createFaceLandmarker() {
+            try {
+                const filesetResolver = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+                );
+                faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    outputFaceBlendshapes: true,
+                    runningMode: "VIDEO",
+                    numFaces: 1
+                });
+                enableCam();
+            } catch (error) {
+                console.error("AI Loading error:", error);
+                alert("Failed to load AI models. Please refresh.");
+                loadingScreen.style.display = 'none';
+                startScreen.style.display = 'flex';
+            }
+        }
+
+        // Clean up previous streams to prevent "Device in use" error
+        function stopWebcam() {
+            if (video.srcObject) {
+                const stream = video.srcObject;
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        // Add window unload listener to ensure clean disconnect
+        window.addEventListener('beforeunload', () => {
+            stopWebcam();
+        });
+
+        async function enableCam() {
+            if (!faceLandmarker) return;
+
+            stopWebcam();
+            
+            // Wait for hardware release
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Attempt 1: Ideal constraints
+            const constraints = { 
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: "user"
+                } 
+            };
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                handleStreamSuccess(stream);
+            } catch (err) {
+                console.warn("First camera attempt failed: ", err);
+                
+                // Attempt 2: Retry with fallback for "Device in use" or Overconstrained errors
+                if (err.name === "NotReadableError" || err.name === "OverconstrainedError" || err.name === "NotAllowedError") {
+                    console.log("Retrying with fallback constraints...");
+                    // Wait longer (1s) to let the device truly free up
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    try {
+                        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        handleStreamSuccess(fallbackStream);
+                    } catch (retryErr) {
+                         handleCameraError(retryErr);
+                    }
+                } else {
+                    handleCameraError(err);
+                }
+            }
+        }
+
+        function handleStreamSuccess(stream) {
+            video.srcObject = stream;
+            video.onloadeddata = () => {
+                loadingScreen.style.display = 'none';
+                startGameLoop();
+                predictWebcam();
+            };
+        }
+
+        function handleCameraError(err) {
+            loadingScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+            if (err.name === "NotReadableError") {
+                alert("Camera is still in use by another application. Please close other camera apps or tabs and wait a moment before trying again.");
+            } else if (err.name === "NotAllowedError") {
+                alert("Camera permission denied. Please check your browser settings to allow camera access.");
+            } else {
+                alert("Camera error: " + err.message);
+            }
+        }
+
+        document.getElementById("start-btn").addEventListener("click", () => {
+            startScreen.style.display = "none";
+            loadingScreen.style.display = "flex";
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if (!faceLandmarker) {
+                createFaceLandmarker();
+            } else {
+                enableCam();
+            }
+        });
+
+        document.getElementById("restart-btn").addEventListener("click", () => {
+            resetGame();
+        });
+
+        function resetGame() {
+            score = 0;
+            currentQuestionIndex = 0;
+            isGameActive = true;
+            endScreen.style.display = 'none';
+            gameUI.style.display = 'block';
+            loadQuestion();
+        }
+
+        function startGameLoop() {
+            isGameActive = true;
+            gameUI.style.display = 'block';
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            if (currentQuestionIndex >= questions.length) {
+                endGame();
+                return;
+            }
+
+            const q = questions[currentQuestionIndex];
+            qNumEl.innerText = currentQuestionIndex + 1;
+            qEmojiEl.innerText = q.emoji;
+            qTextEl.innerText = q.text;
+            
+            const percent = ((currentQuestionIndex) / questions.length) * 100;
+            progressFill.style.width = `${percent}%`;
+
+            isProcessing = false;
+        }
+
+        async function predictWebcam() {
+            // Stop loop if camera is turned off
+            if (!video.srcObject || !video.videoWidth) {
+                animationFrameId = window.requestAnimationFrame(predictWebcam);
+                return;
+            }
+
+            if (lastVideoTime !== video.currentTime) {
+                lastVideoTime = video.currentTime;
+                const results = faceLandmarker.detectForVideo(video, performance.now());
+                
+                if (results.faceLandmarks && results.faceLandmarks.length > 0 && isGameActive && !isProcessing) {
+                    checkHeadTilt(results.faceLandmarks[0]);
+                }
+            }
+            animationFrameId = window.requestAnimationFrame(predictWebcam);
+        }
+
+        function checkHeadTilt(landmarks) {
+            // 454 = Right Ear, 234 = Left Ear
+            // Note: coordinates are normalized (0.0 - 1.0)
+            const leftEar = landmarks[234];
+            const rightEar = landmarks[454];
+
+            const tiltThreshold = 0.05; 
+            
+            // Calculate difference
+            const diff = rightEar.y - leftEar.y;
+
+            // Visual feedback on zones
+            zoneLeft.classList.remove('zone-active');
+            zoneRight.classList.remove('zone-active');
+
+            // --- REVERSED LOGIC BASED ON USER FEEDBACK ---
+            // If diff > 0, we now treat this as LEFT TILT (YES)
+            // If diff < 0, we now treat this as RIGHT TILT (NO)
+            
+            if (diff > tiltThreshold) {
+                // Was Right, now trigger LEFT/YES
+                zoneLeft.classList.add('zone-active');
+                handleAnswer(true); // Yes
+            } else if (diff < -tiltThreshold) {
+                // Was Left, now trigger RIGHT/NO
+                zoneRight.classList.add('zone-active');
+                handleAnswer(false); // No
+            }
+        }
+
+        function handleAnswer(userSaysYes) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            const currentQ = questions[currentQuestionIndex];
+            const isCorrect = (userSaysYes === currentQ.answer);
+
+            feedbackEl.style.display = 'block';
+            feedbackEl.style.animation = 'none';
+            feedbackEl.offsetHeight; 
+            feedbackEl.style.animation = 'zoomFade 1.5s forwards';
+
+            if (isCorrect) {
+                score++;
+                feedbackEl.innerText = "Good Job! 🎉";
+                feedbackEl.style.color = "#4ADE80";
+                playTone('correct');
+                speak("Good Job!");
+            } else {
+                feedbackEl.innerText = "Try Again! ❌";
+                feedbackEl.style.color = "#F87171";
+                playTone('wrong');
+                speak("Oh no.");
+            }
+
+            setTimeout(() => {
+                feedbackEl.style.display = 'none';
+                currentQuestionIndex++;
+                loadQuestion();
+            }, 2000);
+        }
+
+        function endGame() {
+            isGameActive = false;
+            gameUI.style.display = 'none';
+            endScreen.style.display = 'flex';
+            finalScoreEl.innerText = `${score} / ${questions.length}`;
+            stopWebcam(); // Cleanup camera on end
+            
+            let comment = "Well done!";
+            if(score === 20) comment = "Perfect Score! 🌟";
+            else if (score > 15) comment = "Amazing Work! 🌈";
+            else if (score > 10) comment = "Good try! 👍";
+            
+            speak(comment);
+        }
+    </script>
+</body>
+</html>
